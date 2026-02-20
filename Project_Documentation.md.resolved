@@ -1,0 +1,171 @@
+# Project Documentation: Sarthi AI
+
+## Project Overview
+
+### What this project is
+**Sarthi AI** is an advanced, AI-powered healthcare companion application designed to bridge the gap between patients and healthcare services. It serves as a comprehensive digital health assistant that simplifies the process of symptom assessment, doctor consultation, and medical record management.
+
+### Why it was created
+The project was utilized to address the growing need for accessible, immediate, and intelligent healthcare support. In many scenarios, patients struggle with understanding their symptoms, finding the right specialist, or managing their medical history. Sarthi AI aims to democratize access to preliminary medical advice and streamline the patient-doctor interaction workflow.
+
+### Who it is for
+*   **Patients**: Individuals seeking quick medical advice, doctor appointments, or a secure place to store health records.
+*   **Doctors**: Healthcare professionals managing appointments, patient records, and conducting initial consultations.
+*   **Elderly & Chronic Patients**: Users needing medication reminders and easy access to emergency contacts.
+
+---
+
+## Problem Statement
+
+### What real-world problem this project solves
+*   **Information Asymmetry**: Patients often lack the knowledge to decide which specialist to visit based on their symptoms.
+*   **Accessibility**: Immediate medical advice is not always available, especially during odd hours.
+*   **Fragmented Records**: Medical history, prescriptions, and reports are often scattered and hard to retrieve when needed.
+*   **Administrative Burden**: Booking appointments and managing follow-ups can be time-consuming for both patients and doctors.
+
+### Significance
+Timely medical intervention saves lives. By providing an instant, AI-driven assessment (Triage), Sarthi AI can guide users to appropriate care faster, potentially preventing complications.
+
+### Limitations of existing solutions
+*   **Generic Symptom Checkers**: Often lack context or personalized recommendations.
+*   **Complex Hospital Systems**: Difficult UI/UX for non-tech-savvy users.
+*   **Lack of Integration**: Booking, records, and advice are usually on separate platforms.
+
+---
+
+## Proposed Solution
+
+### How Sarthi AI solves the problem
+Sarthi AI integrates symptom analysis, appointment booking, and health management into a single, user-friendly interface. It uses Generative AI to understand natural language symptoms and triage patients effectively.
+
+### Key Innovations
+*   **AI-Powered Triage**: Uses Google's Gemini AI to analyze symptoms and suggest potential causes and appropriate specialists.
+*   **Unified Ecosystem**: Combines patient and doctor portals in one app.
+*   **Smart Features**: SOS emergency alerts, medication tracking, and multi-language support.
+
+### Benefits to users
+*   **Instant Guidance**: 24/7 symptom assessment.
+*   **Convenience**: Book appointments and consult via video/chat from home.
+*   **Safety**: Emergency SOS features and medication adherence tracking.
+
+---
+
+## System Architecture
+
+### Frontend
+*   **Framework**: React (v18) with Vite for fast build and HMR.
+*   **UI Library**: Tailwind CSS for responsive, utility-first styling.
+*   **Icons**: Lucide React for consistent and modern iconography.
+*   **State Management**: React Context API (`LanguageContext`) and Local State (`useState`) for managing user sessions and app flow.
+
+### Backend & Services (Serverless/Client-Side)
+*   **Authentication**: Custom `AuthService` (currently simulating session management).
+*   **AI Service**: `geminiService.ts` integrates directly with Google's Generative AI SDK to process user prompts.
+*   **Data Handling**: In-memory mock data architecture for demonstration, scalable to REST/GraphQL APIs.
+
+### Data Flow
+1.  **User Input**: User enters symptoms in the Triage page.
+2.  **AI Processing**: Input is sent to Gemini API via `geminiService`.
+3.  **Recommendation**: AI analyzes and returns a suggested specialty (e.g., "Cardiologist").
+4.  **Action**: App leads user to the "Find Doctor" page, filtered by the recommended specialty.
+
+---
+
+## Working Mechanism
+
+### Step-by-Step Workflow
+1.  **Onboarding/Login**: Users sign up or log in. New users go through an onboarding flow to capture basic health data.
+2.  **Home Dashboard**: Central hub showing upcoming appointments, quick actions (SOS, Triage), and notifications.
+3.  **Symptom Triage**: User describes issues ? AI suggests action/specialist.
+4.  **Appointment Booking**: User selects a doctor ? Chooses slot ? Confirms booking.
+5.  **Consultation**: Video call or chat interface for the actual doctor-patient interaction.
+6.  **Post-Consultation**: Doctor adds diagnosis/prescription ? Updates User's Medical History.
+
+### Internal Processing
+*   **Routing**: Custom state-based routing (`AppRoute` enum) handles navigation without page reloads, preserving state.
+*   **Localization**: `useLanguage` hook dynamically translates UI elements based on user preference.
+
+---
+
+## Features & Modules
+
+### 1. Patient Module
+*   **AI Triage Bot**: Chat interface for symptom checking.
+*   **Doctor Discovery**: Search and filter doctors by specialty, rating, and availability.
+*   **Health Profile**: Digital storage for allergies, history, and lab reports.
+*   **Medication Manager**: Reminders and tracking for daily prescriptions.
+
+### 2. Doctor Module
+*   **Dashboard**: Overview of daily schedule ("Today's Appointments").
+*   **Patient Management**: View patient history and details before consultation.
+*   **Prescription Tool**: Digital interface to write and send prescriptions.
+
+### 3. Core Utilities
+*   **SOS Panic Button**: One-tap alert to emergency contacts.
+*   **Multi-language Support**: Accessible in varying regional languages.
+*   **Dark Mode**: Native support for light/dark themes.
+
+---
+
+## Technology Stack
+
+### Core Technologies
+*   **Language**: TypeScript (for type safety and maintainability).
+*   **Frontend**: React.js.
+*   **Build Tool**: Vite.
+
+### Libraries & Tools
+*   **Styling**: Tailwind CSS, PostCSS, Autoprefixer.
+*   **AI/ML**: Google Generative AI SDK (`@google/genai`).
+*   **Icons**: `lucide-react`.
+*   **Code Quality**: ESLint.
+
+---
+
+## Implementation Details
+
+### Core Algorithms
+*   **Triage Logic**: Utilizes prompt engineering in `geminiService` to structure unstructured patient queries into JSON-like classification of medical specialties.
+*   **Matching Algorithm**: Filters the `doctors` array based on the `specialty` derived from the AI triage status.
+
+### Security
+*   **Environmental Variables**: API keys are secured using [.env](file:///c:/Users/Lenovo/OneDrive/Desktop/sarthi-main/.env) files (not exposed in repo).
+*   **Role-Based Access Control (RBAC)**: Distinct flows for 'Patient' and 'Doctor' roles enforced at the application state level.
+
+---
+
+## Use Case Scenarios
+
+### Scenario 1: The Urgent Triage
+*   **User**: "I have severe chest pain and sweating."
+*   **Sarthi AI**: Detects high urgency ? Recommends "Cardiologist" ? Shows SOS button immediately ? Lists available Cardiologists.
+
+### Scenario 2: Routine Checkup
+*   **User**: Elderly patient needs a regular diabetes checkup.
+*   **System**: Reminds user via specific notification ? User books "Dr. Rajesh" ? Doctor reviews past sugar levels from Profile before call.
+
+---
+
+## Advantages & Limitations
+
+### Strengths
+*   **User-Centric Design**: Minimalist, clean UI optimized for mobile.
+*   **Speed**: Vite ensures near-instant load times; Local-first data feels snappy.
+*   **Scalability**: Component-based architecture allows easy addition of new features.
+
+### Current Limitations
+*   **Data Persistence**: Currently uses local state/mock data; needs a database (MongoDB/PostgreSQL) for permanent storage.
+*   **AI Latency**: Dependent on external API response times.
+
+---
+
+## Future Scope & Enhancements
+
+### Planned Upgrades
+1.  **Backend Integration**: Connect to a robust backend (Node.js/Express + MongoDB) for real-time data sync.
+2.  **Real-Time Video**: Integrate WebRTC (e.g., Agora or Twilio) for actual video consultations.
+3.  **Payment Gateway**: Integrate Stripe/Razorpay for processing consultation fees.
+4.  **IoT Integration**: Connect with wearables (Apple Watch, Fitbit) to auto-sync vitals.
+
+### Conclusion
+Sarthi AI represents a significant step towards accessible digital healthcare. By leveraging modern web technologies and Generative AI, it creates a seamless personalized healthcare experience, promising to reduce the burden on traditional healthcare systems while empowering users.
