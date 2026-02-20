@@ -1,5 +1,6 @@
-# Swasthya Setu - Healthcare Companion
+# Swasthya Setu - Healthcare Companion (Swasthya-Setu-Enigma-26)
 
+This repo is to demonstrarte our project and idea Swasthya setu for Enigma'26 Hackathon Jaipur.
 Swasthya Setu is an AI-enabled healthcare assistant designed for triage, doctor matching, EHR management, and emergency protocols.
 
 ## Tech Stack
