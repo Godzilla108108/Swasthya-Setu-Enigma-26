@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Stethoscope, User, ArrowRight, Loader2, Lock, Mail, ShieldCheck } from 'lucide-react';
-import { AuthService } from '../services/authService';
+import { Stethoscope, User, ArrowRight, Loader2, Lock, ShieldCheck, Mail } from 'lucide-react';
 import { AppRoute } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Button, Card, Input } from '../components/ui';
+import { AuthService } from '../services/authService';
 
 interface LoginPageProps {
   onLogin: (response: any) => void;
@@ -15,16 +15,16 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onNavigate }) => {
   const [role, setRole] = useState<'patient' | 'doctor'>('patient');
   const [email, setEmail] = useState('rahul@demo.com');
   const [password, setPassword] = useState('password');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
     try {
-      const response = await AuthService.login(email, role);
+      const response = await AuthService.login(email, password, role);
       onLogin(response);
     } catch (err: any) {
       setError(err.message || 'Login failed');
@@ -85,7 +85,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onNavigate }) => {
         </div>
 
         {/* Login Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleEmailLogin} className="space-y-6 animate-in fade-in duration-300">
           <div className="space-y-4">
             <div className="space-y-1">
               <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">Email Address</label>
@@ -132,6 +132,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onNavigate }) => {
           </Button>
         </form>
 
+
         <div className="space-y-6 pt-4">
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
@@ -156,15 +157,15 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onNavigate }) => {
         {/* Demo Credentials Alert */}
         <div className="text-center">
           <div className="inline-block px-4 py-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('auth.demo_creds')}</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Demo Note</p>
             <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300 mt-1">
-              <span className="text-blue-500">P:</span> rahul@demo.com | <span className="text-blue-500">D:</span> vikram@demo.com
+              Use your registered email and password to log in.
             </p>
           </div>
         </div>
 
       </Card>
-    </div>
+    </div >
   );
 };
 

@@ -38,8 +38,10 @@ const Sidebar: React.FC<SidebarProps> = ({
 
     const patientLinks = [
         { icon: Home, label: t('nav.home'), route: AppRoute.HOME },
+        { icon: MessageSquare, label: 'Chatbot', route: AppRoute.CHATBOT },
         { icon: Stethoscope, label: t('nav.doctors'), route: AppRoute.DOCTORS },
         { icon: User, label: t('nav.profile'), route: AppRoute.PROFILE },
+        { icon: Activity, label: 'Prescription Analyzer', href: 'https://finalragme.streamlit.app/' },
     ];
 
     const doctorLinks = [
@@ -51,14 +53,6 @@ const Sidebar: React.FC<SidebarProps> = ({
 
     return (
         <div className={`hidden md:flex flex-col h-full glass border-r border-white/10 transition-all duration-500 z-50 relative ${isCollapsed ? 'w-24' : 'w-72'}`}>
-
-            {/* Collapse Toggle */}
-            <button
-                onClick={() => setIsCollapsed(!isCollapsed)}
-                className="absolute -right-3 top-10 bg-blue-600 text-white rounded-full p-1 shadow-lg shadow-blue-500/20 hover:scale-110 active:scale-90 transition-all z-[60]"
-            >
-                {isCollapsed ? <Menu size={14} /> : <ChevronLeft size={14} />}
-            </button>
 
             {/* Brand Header */}
             <div className={`p-8 pb-10 transition-all duration-500 ${isCollapsed ? 'px-4' : 'px-8'}`}>
@@ -86,18 +80,11 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <p className="px-5 mb-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] opacity-60 animate-in fade-in duration-500">System Menu</p>
                 )}
 
-                {links.map((link) => {
-                    const isActive = currentRoute === link.route;
-                    return (
-                        <button
-                            key={link.route}
-                            onClick={() => onNavigate(link.route)}
-                            className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-300 group relative ${isActive
-                                ? 'bg-blue-600 text-white shadow-xl shadow-blue-600/20 font-bold translate-x-1'
-                                : 'text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
-                                } ${isCollapsed ? 'justify-center px-0' : ''}`}
-                            title={isCollapsed ? link.label : ''}
-                        >
+                {links.map((link: any, idx) => {
+                    const isActive = link.route && currentRoute === link.route;
+
+                    const LinkContent = (
+                        <>
                             <link.icon size={20} strokeWidth={isActive ? 2.5 : 2} className={`transition-transform duration-300 shrink-0 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
                             {!isCollapsed && (
                                 <span className="text-sm font-bold tracking-tight uppercase tracking-widest text-[11px] scale-y-110 translate-y-0.5 animate-in fade-in slide-in-from-left-4">{link.label}</span>
@@ -105,6 +92,36 @@ const Sidebar: React.FC<SidebarProps> = ({
                             {isActive && !isCollapsed && (
                                 <div className="absolute left-0 w-1 h-6 bg-white rounded-full -translate-x-1" />
                             )}
+                        </>
+                    );
+
+                    const className = `w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-300 group relative ${isActive
+                        ? 'bg-blue-600 text-white shadow-xl shadow-blue-600/20 font-bold translate-x-1'
+                        : 'text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
+                        } ${isCollapsed ? 'justify-center px-0' : ''}`;
+
+                    if (link.href) {
+                        return (
+                            <a
+                                key={`link-${idx}`}
+                                href={link.href}
+                                target="_self"
+                                className={className}
+                                title={isCollapsed ? link.label : ''}
+                            >
+                                {LinkContent}
+                            </a>
+                        );
+                    }
+
+                    return (
+                        <button
+                            key={`btn-${idx}`}
+                            onClick={() => link.route && onNavigate(link.route)}
+                            className={className}
+                            title={isCollapsed ? link.label : ''}
+                        >
+                            {LinkContent}
                         </button>
                     );
                 })}

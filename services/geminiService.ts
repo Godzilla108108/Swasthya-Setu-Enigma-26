@@ -1,298 +1,334 @@
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { GoogleGenAI, Type, Schema } from '@google/genai';
 import { Message, UserProfile, PrescriptionData } from '../types';
 
-// Use process.env.API_KEY as per guidelines. 
-// Ideally, ensure your build tool (Vite/Webpack) defines process.env.API_KEY.
-const API_KEY = process.env.API_KEY;
+// ---------------------------------------------------------------------------
+// Client setup
+// ---------------------------------------------------------------------------
 
-// Initialize AI only if key exists, otherwise we'll handle gracefully in functions
-const ai = API_KEY ? new GoogleGenAI({ apiKey: API_KEY }) : null;
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+// The @google/genai SDK requires dangerouslyAllowBrowser for frontend apps
+const ai = API_KEY ? new GoogleGenAI({ apiKey: API_KEY, dangerouslyAllowBrowser: true } as any) : null;
+const MODEL = 'gemini-2.5-flash';
 
-const TRIAGE_MODEL_NAME = 'gemini-2.5-flash';
+// ---------------------------------------------------------------------------
+// Language helpers
+// ---------------------------------------------------------------------------
 
-const languageMap: Record<string, string> = {
-  'en': 'English',
-  'hi': 'Hindi (हिन्दी)',
-  'ta': 'Tamil (தமிழ்)',
-  'te': 'Telugu (తెలుగు)',
-  'kn': 'Kannada (ಕನ್ನಡ)',
-  'ml': 'Malayalam (മലയാളം)',
-  'bn': 'Bengali (বাংলা)',
-  'mr': 'Marathi (मराठी)',
-  'gu': 'Gujarati (ગુજરાતી)'
+const LANGUAGE_MAP: Record<string, string> = {
+  en: 'English',
+  hi: 'Hindi (हिन्दी)',
+  ta: 'Tamil (தமிழ்)',
+  te: 'Telugu (తెలుగు)',
+  kn: 'Kannada (ಕನ್ನಡ)',
+  ml: 'Malayalam (മലയാളം)',
+  bn: 'Bengali (বাংলা)',
+  mr: 'Marathi (मराठी)',
+  gu: 'Gujarati (ગુજરાતી)',
 };
 
-// --- MOCK RESPONSES FOR DEMO (If API Key is missing) ---
-const MOCK_TRIAGE_RESPONSE = {
-  text: "I am running in demo mode (No API Key found). Based on your inputs, please consult a general physician.",
-  options: ["Okay", "Tell me more"],
-  isFinal: true,
-  triageResult: {
-    level: "Yellow",
-    specialty: "General Physician",
-    summary: "Demo mode: Unable to process real AI request. Please check Vercel environment variables."
-  }
-};
+const langName = (code: string) => LANGUAGE_MAP[code] ?? 'English';
+
+// ---------------------------------------------------------------------------
+// Schemas
+// ---------------------------------------------------------------------------
 
 const triageSchema: Schema = {
   type: Type.OBJECT,
   properties: {
     text: {
       type: Type.STRING,
-      description: "The response text or question to ask the user.",
+      description: 'The response text or question to ask the user.',
     },
     options: {
       type: Type.ARRAY,
       items: { type: Type.STRING },
-      description: "A list of 2-4 short suggested response buttons for the user (e.g., 'Yes', 'No', 'High Fever').",
+      description: '2–4 short suggested reply buttons for the user.',
     },
     isFinal: {
       type: Type.BOOLEAN,
-      description: "Set to true only if you have gathered enough information to provide a preliminary triage recommendation.",
+      description: 'True only when enough information exists for a triage recommendation.',
     },
     triageResult: {
       type: Type.OBJECT,
       nullable: true,
-      description: "Required if isFinal is true.",
+      description: 'Required when isFinal is true.',
       properties: {
         level: {
           type: Type.STRING,
-          enum: ["Green", "Yellow", "Red"],
-          description: "Green: Non-urgent. Yellow: Urgent appointment needed. Red: Emergency room.",
+          enum: ['Green', 'Yellow', 'Red'],
+          description: 'Green: Non-urgent. Yellow: Urgent appointment. Red: Emergency room.',
         },
         specialty: {
           type: Type.STRING,
-          description: "The recommended medical specialty (e.g., General Physician, Cardiologist, Dermatologist).",
+          description: 'Recommended medical specialty.',
         },
         summary: {
           type: Type.STRING,
-          description: "A concise summary of the preliminary analysis for the doctor.",
+          description: 'Concise preliminary analysis for the doctor.',
         },
       },
-      required: ["level", "specialty", "summary"],
+      required: ['level', 'specialty', 'summary'],
     },
   },
-  required: ["text", "isFinal"],
+  required: ['text', 'isFinal'],
 };
 
 const prescriptionSchema: Schema = {
   type: Type.OBJECT,
   properties: {
-    diagnosis: {
-      type: Type.STRING,
-      description: "The diagnosis extracted from the prescription or notes.",
-    },
+    diagnosis: { type: Type.STRING, description: 'Diagnosis extracted from the prescription.' },
     medications: {
       type: Type.ARRAY,
       items: { type: Type.STRING },
-      description: "List of medications prescribed with dosage.",
+      description: 'Medications with dosage.',
     },
-    followUp: {
-      type: Type.STRING,
-      description: "Recommended follow-up time (e.g., '1 week', '3 days').",
-    },
+    followUp: { type: Type.STRING, description: "Follow-up timeframe (e.g. '1 week')." },
   },
-  required: ["diagnosis", "medications"],
+  required: ['diagnosis', 'medications'],
 };
 
+// ---------------------------------------------------------------------------
+// Mock fallbacks (no API key)
+// ---------------------------------------------------------------------------
+
+const MOCK_TRIAGE: unknown = {
+  text: 'Running in demo mode (no API key). Please consult a general physician.',
+  options: ['Okay', 'Tell me more'],
+  isFinal: true,
+  triageResult: {
+    level: 'Yellow',
+    specialty: 'General Physician',
+    summary: 'Demo mode: check your Vercel/environment API_KEY variable.',
+  },
+};
+
+const MOCK_PRESCRIPTION: PrescriptionData = {
+  diagnosis: 'Demo Diagnosis (API Key Missing)',
+  medications: ['Demo Med 500mg – twice daily'],
+  followUp: '1 Week',
+};
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Extract base64 payload from a data URL or return the string as-is. */
+const stripDataUrl = (dataUrl: string) => dataUrl.split(',')[1] ?? dataUrl;
+
+/** Build an inline image part for the Gemini API. */
+const imagePart = (base64: string, mimeType = 'image/jpeg') => ({
+  inlineData: { mimeType, data: base64 },
+});
+
+/**
+ * FIX: In @google/genai the response text is accessed via the getter property `response.text`, 
+ * NOT as a method `response.text()`.
+ */
+const extractText = (response: { text: string | undefined }): string => {
+  const t = response.text;
+  if (!t) throw new Error('Empty response from Gemini API.');
+  return t;
+};
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/**
+ * Run the symptom-triage conversation.
+ * Returns a structured triage object matching `triageSchema`.
+ */
 export const generateTriageResponse = async (
   history: Message[],
   userProfile: UserProfile,
-  language: string = 'en'
-): Promise<any> => {
+  language = 'en'
+): Promise<unknown> => {
   if (!ai) {
-    console.warn("Gemini API Key missing. Returning mock response.");
-    await new Promise(r => setTimeout(r, 1000));
-    return MOCK_TRIAGE_RESPONSE;
+    await new Promise((r) => setTimeout(r, 800));
+    return MOCK_TRIAGE;
   }
 
+  const selectedLang = langName(language);
+
+  const timelineEvents = (userProfile?.medicalEvents || [])
+    .map((e) => `- ${e.date}: ${e.title} (${e.description})`)
+    .join('\n');
+
+  const medNames = (userProfile?.medications || []).map((m) => m.name).join(', ') || 'None';
+  const allergies = (userProfile?.allergies || []).join(', ') || 'None';
+
+  const systemPrompt = `
+You are "Swasthya Setu", an intelligent and empathetic medical assistant for the Indian healthcare context.
+Your goal is to assess the user's symptoms and recommend a triage level and specialist.
+
+LANGUAGE: You MUST respond ONLY in ${selectedLang}. Never use English when another language is selected.
+
+User Profile:
+- Age: ${userProfile.age}
+- Allergies: ${allergies}
+- Current Medications: ${medNames}
+- Medical History: ${userProfile.medicalHistory || 'None recorded'}
+
+Recent Medical Timeline:
+${timelineEvents || 'No events on record.'}
+
+Conversation Protocol:
+1. TONE – Be affirmative, empathetic, and calming. Use phrases like "Please don't worry" and "Take a deep breath".
+2. IMMEDIATE COMFORT – Alongside clinical questions, suggest a calming action (e.g. "Please sit down and drink some water").
+3. QUESTIONS – Ask 1–3 focused follow-up questions. Analyse any uploaded images.
+4. OPTIONS – Always provide 2–4 short reply buttons in ${selectedLang}.
+5. COMPLETION – Set "isFinal: true" once you have sufficient information.
+6. EMERGENCIES – For chest pain, severe bleeding, etc., set level "Red" immediately, stay calm, and gently advise calling 112 or 108.
+7. TERMINOLOGY – Use Indian medical terminology where appropriate.
+`.trim();
+
+  // Convert chat history to Gemini content format
+  const contents = history.map((msg) => {
+    const parts: object[] = [{ text: msg.text }];
+
+    if (msg.image) {
+      const b64 = stripDataUrl(msg.image);
+      if (b64) parts.push(imagePart(b64));
+    }
+
+    return {
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts,
+    };
+  });
+
   try {
-    const timelineEvents = userProfile.medicalEvents
-      .map(e => `- ${e.date}: ${e.title} (${e.description})`)
-      .join('\n');
-
-    const medNames = userProfile.medications.map(m => m.name).join(', ');
-
-
-    const selectedLanguageName = languageMap[language] || 'English';
-    const langInstruction = `You MUST respond ONLY in ${selectedLanguageName}. Do not use English if the language is not English.`;
-
-    const systemPrompt = `
-      You are "Swasthya Setu", an intelligent and empathetic medical assistant tailored for the Indian healthcare context.
-      Your goal is to assess the user's symptoms efficiently and recommend a triage level and specialist.
-      ${langInstruction}
-      
-      User Profile:
-      - Age: ${userProfile.age}
-      - Allergies: ${userProfile.allergies.join(', ')}
-      - Medications: ${medNames}
-      
-      Medical History Timeline:
-      ${timelineEvents}
-      
-      Summary: ${userProfile.medicalHistory}
-
-      Protocol:
-      1. TONE: Be affirmative, emphatic, personal, and calming. Never threaten the patient. Use phrases like "Please don't worry", "Take a deep breath".
-      2. ADVICE: Along with medical questions, suggest immediate non-medical calming actions like "Please sit down and drink some water", "Rest for a moment".
-      3. Ask 1-3 targeted follow-up questions to clarify symptoms. If the user uploads an image, analyze it.
-      4. Provide "options" for quick replies (in ${selectedLanguageName}).
-      5. Once you have enough info, set "isFinal" to true.
-      6. For critical issues (chest pain, heavy bleeding), set Triage Level "Red" immediately but stay calm. Advise calling 112 or 108 gently but urgently.
-      7. Use Indian terminology where appropriate.
-    `;
-
-    // Convert chat history to Gemini format
-    const contents = history.map((msg) => {
-      const parts: any[] = [{ text: msg.text }];
-
-      if (msg.image) {
-        // Strip the data URL prefix (e.g. "data:image/jpeg;base64,")
-        const base64Data = msg.image.split(',')[1];
-        if (base64Data) {
-          parts.push({
-            inlineData: {
-              mimeType: 'image/jpeg',
-              data: base64Data
-            }
-          });
-        }
-      }
-
-      return {
-        role: msg.role === 'assistant' ? 'model' : 'user',
-        parts: parts,
-      };
-    });
-
     const response = await ai.models.generateContent({
-      model: TRIAGE_MODEL_NAME,
+      model: MODEL,
       config: {
         systemInstruction: systemPrompt,
-        responseMimeType: "application/json",
+        responseMimeType: 'application/json',
         responseSchema: triageSchema,
       },
-      contents: contents,
+      contents,
     });
 
-    const jsonText = response.text;
-    if (!jsonText) throw new Error("No response from AI");
-
-    return JSON.parse(jsonText);
-
+    // ✅ CRITICAL FIX: response.text is a METHOD, not a property
+    return JSON.parse(extractText(response));
   } catch (error) {
-    console.error("Gemini Triage Error:", error);
+    console.error('[Triage] Gemini error:', error);
     return {
-      text: language === 'hi'
-        ? "मुझे नेटवर्क से कनेक्ट करने में समस्या हो रही है। कृपया अपना कनेक्शन जांचें।"
-        : "I'm having trouble connecting to the network. Please check your connection or try again.",
-      options: [],
-      isFinal: false
+      text:
+        language === 'hi'
+          ? 'नेटवर्क से कनेक्ट करने में समस्या हो रही है। कृपया पुनः प्रयास करें।'
+          : 'Having trouble reaching the AI. Please check your connection and try again.',
+      options: ['Try again'],
+      isFinal: false,
     };
   }
 };
 
+/**
+ * Parse a prescription image and return structured data.
+ */
 export const parsePrescription = async (imageBase64: string): Promise<PrescriptionData> => {
-  if (!ai) {
-    return {
-      diagnosis: "Demo Diagnosis (API Key Missing)",
-      medications: ["Demo Med 500mg"],
-      followUp: "1 Week"
-    };
-  }
+  if (!ai) return MOCK_PRESCRIPTION;
 
   try {
-    const base64Data = imageBase64.split(',')[1];
-
     const response = await ai.models.generateContent({
-      model: TRIAGE_MODEL_NAME,
+      model: MODEL,
       config: {
-        systemInstruction: "You are an expert AI medical assistant. Your task is to transcribe handwritten or printed medical prescriptions into structured data. Extract the Diagnosis, Medications (with dosage), and any Follow-up advice.",
-        responseMimeType: "application/json",
+        systemInstruction:
+          'You are an expert AI medical assistant. Transcribe handwritten or printed medical prescriptions into structured data. Extract the Diagnosis, Medications (with dosage), and Follow-up advice.',
+        responseMimeType: 'application/json',
         responseSchema: prescriptionSchema,
       },
       contents: [
         {
           parts: [
-            { text: "Analyze this prescription image and extract the details." },
-            {
-              inlineData: {
-                mimeType: 'image/jpeg',
-                data: base64Data
-              }
-            }
-          ]
-        }
-      ]
+            { text: 'Analyse this prescription image and extract the details.' },
+            imagePart(stripDataUrl(imageBase64)),
+          ],
+        },
+      ],
     });
 
-    const jsonText = response.text;
-    if (!jsonText) throw new Error("No response from AI");
-
-    return JSON.parse(jsonText) as PrescriptionData;
+    // ✅ CRITICAL FIX: response.text() — method call
+    return JSON.parse(extractText(response)) as PrescriptionData;
   } catch (error) {
-    console.error("Prescription OCR Error:", error);
+    console.error('[Prescription OCR] Error:', error);
     throw error;
   }
 };
 
-export const generateHealthSummary = async (userProfile: UserProfile, language: string = 'en'): Promise<string> => {
-  if (!ai) return "API Key missing. Cannot generate summary.";
+/**
+ * Generate a short, personalised health summary paragraph.
+ */
+export const generateHealthSummary = async (
+  userProfile: UserProfile,
+  language = 'en'
+): Promise<string> => {
+  if (!ai) return 'API Key missing. Cannot generate summary.';
+
+  const recentEvents = userProfile.medicalEvents
+    .slice(0, 5)
+    .map((e) => `- ${e.date}: ${e.title} (${e.type})`)
+    .join('\n');
+
+  const medNames = userProfile.medications.map((m) => m.name).join(', ') || 'None';
+
+  const prompt = `
+Analyse the following patient profile and write a brief, empathetic 3–4 sentence health summary in ${langName(language)}.
+Output plain text only — no markdown, no bullet points.
+
+Name: ${userProfile.name}, Age: ${userProfile.age}
+Conditions: ${userProfile.medicalHistory || 'None'}
+Medications: ${medNames}
+Recent Events:
+${recentEvents || 'None'}
+`.trim();
 
   try {
-    const timelineEvents = userProfile.medicalEvents.slice(0, 5)
-      .map(e => `- ${e.date}: ${e.title} (${e.type})`)
-      .join('\n');
-    const medNames = userProfile.medications.map(m => m.name).join(', ');
-
-    const prompt = `
-      Analyze this patient profile and provide a brief, empathetic 3-4 sentence health summary in ${languageMap[language] || 'English'}.
-      
-      Name: ${userProfile.name}, Age: ${userProfile.age}
-      Conditions: ${userProfile.medicalHistory}
-      Meds: ${medNames}
-      Recent Events:
-      ${timelineEvents}
-      
-      Output format: Plain text paragraph. Do not use markdown formatting.
-    `;
-
     const response = await ai.models.generateContent({
-      model: TRIAGE_MODEL_NAME,
+      model: MODEL,
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
     });
 
-    return response.text || "Health summary unavailable.";
+    // ✅ CRITICAL FIX: response.text() — method call
+    return extractText(response);
   } catch (error) {
-    console.error("Summary Gen Error", error);
-    return "Could not generate summary at this time.";
+    console.error('[Health Summary] Error:', error);
+    return 'Could not generate summary at this time.';
   }
 };
 
-export const generateHealthTip = async (userProfile: UserProfile, language: string = 'en'): Promise<string> => {
-  if (!ai) return "Stay hydrated!";
+/**
+ * Generate a single personalised daily health tip (≤30 words).
+ */
+export const generateHealthTip = async (
+  userProfile: UserProfile,
+  language = 'en'
+): Promise<string> => {
+  if (!ai) return 'Stay hydrated and take short breaks throughout the day!';
+
+  const medNames = userProfile.medications.map((m) => m.name).join(', ') || 'None';
+
+  const prompt = `
+Generate one short, personalised, actionable health tip for today in ${langName(language)}.
+Keep it under 30 words. No markdown.
+
+Profile:
+- Age: ${userProfile.age}
+- Conditions: ${userProfile.medicalHistory || 'None'}
+- Medications: ${medNames}
+- Allergies: ${userProfile.allergies.join(', ') || 'None'}
+`.trim();
 
   try {
-    const medNames = userProfile.medications.map(m => m.name).join(', ');
-    const prompt = `
-      Based on the following user profile, generate a single, short, personalized, and actionable health tip or habit for today in ${languageMap[language] || 'English'}.
-      Keep it under 30 words.
-      
-      Profile:
-      - Age: ${userProfile.age}
-      - Conditions: ${userProfile.medicalHistory}
-      - Medications: ${medNames}
-      - Allergies: ${userProfile.allergies.join(', ')}
-    `;
-
     const response = await ai.models.generateContent({
-      model: TRIAGE_MODEL_NAME,
+      model: MODEL,
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
     });
 
-    return response.text || "Drink plenty of water today!";
+    // ✅ CRITICAL FIX: response.text() — method call
+    return extractText(response);
   } catch (error) {
-    console.error("Health Tip Error", error);
-    return "Take a 10-minute walk today to boost your energy.";
+    console.error('[Health Tip] Error:', error);
+    return 'Take a 10-minute walk today to boost your energy.';
   }
 };

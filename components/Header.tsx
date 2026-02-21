@@ -141,13 +141,7 @@ const Header: React.FC<HeaderProps> = ({
                                     <User size={18} className="text-slate-400 group-hover/item:text-white transition-colors" />
                                     <span className="text-xs font-bold tracking-tight">View Profile</span>
                                 </button>
-                                <button
-                                    onClick={() => { setShowLanguageMenu(true); setShowProfileMenu(false); }}
-                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-slate-700 dark:text-slate-200"
-                                >
-                                    <Languages size={18} className="text-slate-400" />
-                                    <span className="text-xs font-bold tracking-tight">Change Language</span>
-                                </button>
+
                                 <button
                                     className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-slate-700 dark:text-slate-200"
                                 >
@@ -168,33 +162,7 @@ const Header: React.FC<HeaderProps> = ({
                         </div>
                     )}
 
-                    {/* Language Sub-menu */}
-                    {showLanguageMenu && (
-                        <div className="absolute right-0 mt-4 w-48 glass rounded-[2rem] shadow-2xl z-[110] border border-white/20 p-2 animate-in slide-in-from-right-2 duration-200">
-                            <div className="px-4 py-2 flex items-center justify-between">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Select Language</span>
-                                <button onClick={() => setShowLanguageMenu(false)} className="text-slate-400 hover:text-slate-900 border-none bg-none p-0">
-                                    <ChevronDown size={14} className="rotate-90" />
-                                </button>
-                            </div>
-                            {(Object.keys(LANGUAGE_NAMES) as Array<keyof typeof LANGUAGE_NAMES>).map((lang) => (
-                                <button
-                                    key={lang}
-                                    onClick={() => {
-                                        setLanguage(lang);
-                                        setShowLanguageMenu(false);
-                                        showToast(`Language set to ${LANGUAGE_NAMES[lang]}`, 'info');
-                                    }}
-                                    className={`w-full px-4 py-3 rounded-2xl text-left text-xs font-bold transition-all ${language === lang
-                                        ? 'bg-blue-600 text-white shadow-lg'
-                                        : 'hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-200'
-                                        }`}
-                                >
-                                    {LANGUAGE_NAMES[lang]}
-                                </button>
-                            ))}
-                        </div>
-                    )}
+
                 </div>
 
                 {!isDoctorMode && (

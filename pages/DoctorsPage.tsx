@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
    Star, MapPin, Clock, Check, Video, Calendar, X, Briefcase, Award,
-   CheckCircle, Search, Stethoscope, ChevronRight
+   CheckCircle, Search, Stethoscope, ChevronRight, BarChart3, TrendingUp, HelpCircle
 } from 'lucide-react';
 import { Doctor } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -19,6 +19,7 @@ const DoctorsPage: React.FC<DoctorsPageProps> = ({ doctors, filterSpecialty, onB
    const [bookingDoctor, setBookingDoctor] = useState<string | null>(null);
    const [videoOnly, setVideoOnly] = useState(false);
    const [viewProfileDoctor, setViewProfileDoctor] = useState<Doctor | null>(null);
+   const [showAnalytics, setShowAnalytics] = useState(false);
 
    const filteredDoctors = doctors.filter(d => {
       const matchesSpecialty = filterSpecialty
@@ -36,6 +37,35 @@ const DoctorsPage: React.FC<DoctorsPageProps> = ({ doctors, filterSpecialty, onB
          setViewProfileDoctor(null);
       }, 1500);
    };
+
+   // Analytics Computation
+   const analyticsData = React.useMemo(() => {
+      if (filteredDoctors.length === 0) return null;
+
+      // 1. Parse fees and calculate value scores
+      const doctorsWithValue = filteredDoctors.map(doc => {
+         const feeText = doc.price.replace(/[^0-9]/g, '');
+         const feeNum = parseInt(feeText, 10) || 500; // default 500 if parsing fails
+
+         // Value Formula: (Rating^2) / Fee. Multiply by 100 for readability
+         const valueScore = ((Math.pow(doc.rating, 2)) / feeNum) * 100;
+
+         return { ...doc, feeNum, valueScore };
+      }).sort((a, b) => b.valueScore - a.valueScore);
+
+      // 2. Aggregate Data
+      const totalFee = doctorsWithValue.reduce((acc, curr) => acc + curr.feeNum, 0);
+      const avgFee = Math.round(totalFee / doctorsWithValue.length);
+
+      const totalRating = doctorsWithValue.reduce((acc, curr) => acc + curr.rating, 0);
+      const avgRating = (totalRating / doctorsWithValue.length).toFixed(1);
+
+      // 3. Top Picks
+      const bestValueDoctor = doctorsWithValue[0];
+      const top3 = doctorsWithValue.slice(0, 3);
+
+      return { avgFee, avgRating, bestValueDoctor, top3 };
+   }, [filteredDoctors]);
 
    return (
       <div className="p-6 md:p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -55,17 +85,113 @@ const DoctorsPage: React.FC<DoctorsPageProps> = ({ doctors, filterSpecialty, onB
 
             <div className="flex items-center gap-3">
                <button
+                  onClick={() => setShowAnalytics(!showAnalytics)}
+                  className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-2xl text-sm font-bold transition-all duration-300 ${showAnalytics
+                     ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
+                     : 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                     }`}
+               >
+                  <BarChart3 size={18} />
+                  <span className="hidden sm:inline">Analytics</span>
+               </button>
+               <button
                   onClick={() => setVideoOnly(!videoOnly)}
-                  className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-sm font-bold transition-all duration-300 ${videoOnly
+                  className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-2xl text-sm font-bold transition-all duration-300 ${videoOnly
                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/25'
                      : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800'
                      }`}
                >
                   <Video size={18} />
-                  {t('find_doc.video_consult')}
+                  <span className="hidden sm:inline">{t('find_doc.video_consult')}</span>
                </button>
             </div>
          </div>
+
+         {/* Analytics Dashboard Panel */}
+         {showAnalytics && analyticsData && (
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-900 dark:to-blue-950/20 rounded-[2rem] p-6 md:p-8 border border-blue-100 dark:border-blue-900/30 shadow-inner animate-in slide-in-from-top-4 duration-500">
+               <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3 text-blue-800 dark:text-blue-300">
+                     <TrendingUp size={24} />
+                     <h3 className="text-xl font-black">Market Insights</h3>
+                  </div>
+                  <Badge variant="info" className="bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm">
+                     {filterSpecialty || 'All Specialties'}
+                  </Badge>
+               </div>
+
+               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Stats Column */}
+                  <div className="space-y-4">
+                     <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                        <div>
+                           <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Average Fee</p>
+                           <p className="text-2xl font-black text-slate-900 dark:text-white">₹{analyticsData.avgFee}</p>
+                        </div>
+                        <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 flex items-center justify-center">
+                           <Award size={24} />
+                        </div>
+                     </div>
+                     <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                        <div>
+                           <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Average Rating</p>
+                           <p className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                              {analyticsData.avgRating} <Star size={20} className="text-amber-500" fill="currentColor" />
+                           </p>
+                        </div>
+                        <div className="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-900/20 text-amber-600 flex items-center justify-center">
+                           <Star size={24} />
+                        </div>
+                     </div>
+                  </div>
+
+                  {/* Best Value Recommendation */}
+                  <div className="lg:col-span-2 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-1 shadow-xl shadow-blue-500/20 isolate relative overflow-hidden">
+                     <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-white/10 blur-2xl rounded-full"></div>
+                     <div className="bg-white dark:bg-slate-900 rounded-xl p-6 h-full flex flex-col sm:flex-row gap-6 items-center sm:items-start relative z-10">
+                        <div className="relative shrink-0">
+                           <div className="absolute -inset-1 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full blur opacity-70 animate-pulse"></div>
+                           <img src={analyticsData.bestValueDoctor.image} alt={analyticsData.bestValueDoctor.name} className="relative w-24 h-24 rounded-full border-4 border-white dark:border-slate-800 object-cover" />
+                           <div className="absolute -bottom-2 lg:-left-2 bg-amber-500 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg border-2 border-white dark:border-slate-900 flex items-center gap-1">
+                              <Check size={12} /> BEST VALUE
+                           </div>
+                        </div>
+
+                        <div className="flex-1 text-center sm:text-left">
+                           <h4 className="text-xl font-black text-slate-900 dark:text-white mb-1">
+                              {analyticsData.bestValueDoctor.name}
+                           </h4>
+                           <p className="text-sm font-bold text-blue-600 dark:text-blue-400 mb-3">
+                              {analyticsData.bestValueDoctor.specialty}
+                           </p>
+
+                           <div className="flex flex-wrap justify-center sm:justify-start gap-4 mb-4">
+                              <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 font-bold bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg text-sm">
+                                 <Star size={16} className="text-amber-500" fill="currentColor" />
+                                 {analyticsData.bestValueDoctor.rating} Rating
+                              </div>
+                              <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 font-bold bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg text-sm">
+                                 <Award size={16} className="text-emerald-500" />
+                                 {analyticsData.bestValueDoctor.price} Fee
+                              </div>
+                           </div>
+
+                           <div className="text-xs text-slate-500 dark:text-slate-400 flex items-start gap-2 max-w-md">
+                              <HelpCircle size={14} className="shrink-0 mt-0.5" />
+                              <p>This doctor is recommended based on having an exceptional rating relative to their fee for this specialty.</p>
+                           </div>
+                        </div>
+
+                        <div className="shrink-0 w-full sm:w-auto">
+                           <Button onClick={() => handleBooking(analyticsData.bestValueDoctor)} className="w-full shadow-lg shadow-blue-500/25">
+                              Book Now
+                           </Button>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            </div>
+         )}
 
          {/* Date Filters */}
          <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">

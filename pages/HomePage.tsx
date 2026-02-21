@@ -9,6 +9,7 @@ import { generateHealthSummary, generateHealthTip } from '../services/geminiServ
 import RateDoctorModal from '../components/RateDoctorModal';
 import OngoingTreatmentCard from '../components/OngoingTreatmentCard';
 import TreatmentDetailsModal from '../components/TreatmentDetailsModal';
+import ImageCarousel from '../components/ImageCarousel';
 import { Card, Button, Badge } from '../components/ui';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -19,6 +20,8 @@ interface HomePageProps {
    onRateDoctor: (appointmentId: string, rating: number, review: string) => void;
    onStartVideoCall: (treatment: OngoingTreatment) => void;
    onStartChat: (treatment: OngoingTreatment) => void;
+   onOpenReports?: () => void;
+   onOpenVFamily?: () => void;
 }
 
 const MOCK_ONGOING_TREATMENTS: OngoingTreatment[] = [
@@ -44,7 +47,7 @@ const MOCK_ONGOING_TREATMENTS: OngoingTreatment[] = [
    }
 ];
 
-const HomePage: React.FC<HomePageProps> = ({ user, appointments, onNavigate, onRateDoctor, onStartVideoCall, onStartChat }) => {
+const HomePage: React.FC<HomePageProps> = ({ user, appointments, onNavigate, onRateDoctor, onStartVideoCall, onStartChat, onOpenReports, onOpenVFamily }) => {
    const { t } = useLanguage();
    const [selectedTreatment, setSelectedTreatment] = useState<OngoingTreatment | null>(null);
 
@@ -53,6 +56,8 @@ const HomePage: React.FC<HomePageProps> = ({ user, appointments, onNavigate, onR
 
    return (
       <div className="p-6 md:p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+         <ImageCarousel />
+
          {/* Welcome Hero Section */}
          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-2">
             <div>
@@ -110,11 +115,11 @@ const HomePage: React.FC<HomePageProps> = ({ user, appointments, onNavigate, onR
                   <div className="grid grid-cols-2 gap-3">
                      {[
                         { icon: Pill, label: "Meds", color: "blue", bg: "bg-blue-50 dark:bg-blue-900/20", border: "border-blue-100 dark:border-blue-800/50", text: "text-blue-600 dark:text-blue-400" },
-                        { icon: FileText, label: "Reports", color: "emerald", bg: "bg-emerald-50 dark:bg-emerald-900/20", border: "border-emerald-100 dark:border-emerald-800/50", text: "text-emerald-600 dark:text-emerald-400" },
+                        { icon: FileText, label: "Reports", color: "emerald", bg: "bg-emerald-50 dark:bg-emerald-900/20", border: "border-emerald-100 dark:border-emerald-800/50", text: "text-emerald-600 dark:text-emerald-400", onClick: onOpenReports },
                         { icon: Video, label: "Consult", color: "purple", bg: "bg-purple-50 dark:bg-purple-900/20", border: "border-purple-100 dark:border-purple-800/50", text: "text-purple-600 dark:text-purple-400" },
-                        { icon: Users, label: "V-Family", color: "amber", bg: "bg-amber-50 dark:bg-amber-900/20", border: "border-amber-100 dark:border-amber-800/50", text: "text-amber-600 dark:text-amber-400" }
+                        { icon: Users, label: "V-Family", color: "amber", bg: "bg-amber-50 dark:bg-amber-900/20", border: "border-amber-100 dark:border-amber-800/50", text: "text-amber-600 dark:text-amber-400", onClick: onOpenVFamily }
                      ].map((action, i) => (
-                        <button key={i} className={`p-4 rounded-2xl ${action.bg} border ${action.border} ${action.text} flex flex-col items-center gap-2 hover:scale-[1.02] active:scale-95 transition-all`}>
+                        <button key={i} onClick={action.onClick} className={`p-4 rounded-2xl ${action.bg} border ${action.border} ${action.text} flex flex-col items-center gap-2 hover:scale-[1.02] active:scale-95 transition-all`}>
                            <action.icon size={22} />
                            <span className="text-xs font-black tracking-tight">{action.label}</span>
                         </button>

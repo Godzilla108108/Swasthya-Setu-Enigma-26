@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   User, Mail, Phone, Calendar, Shield, LogOut, Camera,
-  MapPin, Heart, Activity, FileText, ChevronRight, Edit3, Save
+  MapPin, Heart, Activity, FileText, ChevronRight, Edit3, Save, ShieldAlert
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -9,11 +9,12 @@ import { Button, Card, Badge, Input } from '../components/ui';
 
 interface ProfilePageProps {
   user: UserProfile;
+  isCaregiverMode?: boolean;
   onUpdate: (user: UserProfile) => void;
   onLogout: () => void;
 }
 
-const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUpdate, onLogout }) => {
+const ProfilePage: React.FC<ProfilePageProps> = ({ user, isCaregiverMode = false, onUpdate, onLogout }) => {
   const { t } = useLanguage();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({ ...user });
@@ -31,14 +32,16 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUpdate, onLogout }) =
           <p className="text-slate-500 dark:text-slate-400 font-medium text-sm mt-1">Manage your medical profile and security settings.</p>
         </div>
         <div className="flex gap-3">
-          {isEditing ? (
-            <Button variant="primary" icon={Save} onClick={handleSave}>
-              Save Changes
-            </Button>
-          ) : (
-            <Button variant="secondary" icon={Edit3} onClick={() => setIsEditing(true)}>
-              Edit Profile
-            </Button>
+          {!isCaregiverMode && (
+            isEditing ? (
+              <Button variant="primary" icon={Save} onClick={handleSave}>
+                Save Changes
+              </Button>
+            ) : (
+              <Button variant="secondary" icon={Edit3} onClick={() => setIsEditing(true)}>
+                Edit Profile
+              </Button>
+            )
           )}
           <Button variant="danger" icon={LogOut} onClick={onLogout}>
             Logout
@@ -161,7 +164,60 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUpdate, onLogout }) =
             </div>
           </Card>
 
-          <Card className="!p-0 overflow-hidden">
+          {/* Caregiver Access Management Section */}
+          <Card className="!p-0 overflow-hidden mt-8 border-amber-200 dark:border-amber-900 shadow-lg shadow-amber-500/5">
+            <div className="p-6 border-b border-amber-100 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-900/10 flex justify-between items-center">
+              <h3 className="font-extrabold text-amber-900 dark:text-amber-500 flex items-center gap-2">
+                <ShieldAlert size={20} /> Access Management
+              </h3>
+              {isCaregiverMode && <Badge variant="warning">Read Only</Badge>}
+            </div>
+
+            <div className="p-8 space-y-6">
+              <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                You can grant a relative or caregiver restricted access to monitor your profile and upload medical reports on your behalf. They will use their own email to log in to Swasthya Setu.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Caregiver Name</label>
+                  <Input
+                    icon={User}
+                    disabled={!isEditing || isCaregiverMode}
+                    placeholder="e.g. Ramesh Singh"
+                    value={formData.caregiver?.name || ''}
+                    onChange={e => setFormData({
+                      ...formData,
+                      caregiver: { ...formData.caregiver, name: e.target.value, email: formData.caregiver?.email || '' }
+                    })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Caregiver Email (Login Id)</label>
+                  <Input
+                    icon={Mail}
+                    type="email"
+                    disabled={!isEditing || isCaregiverMode}
+                    placeholder="e.g. relative@demo.com"
+                    value={formData.caregiver?.email || ''}
+                    onChange={e => setFormData({
+                      ...formData,
+                      caregiver: { ...formData.caregiver, name: formData.caregiver?.name || '', email: e.target.value }
+                    })}
+                  />
+                </div>
+              </div>
+
+              {formData.caregiver?.email && (
+                <div className="flex items-center gap-3 p-4 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded-xl text-sm font-bold border border-emerald-200 dark:border-emerald-800/30">
+                  <Shield size={18} />
+                  Access granted to {formData.caregiver.name} ({formData.caregiver.email})
+                </div>
+              )}
+            </div>
+          </Card>
+
+          <Card className="!p-0 overflow-hidden mt-8">
             <div className="p-6 border-b border-gray-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
               <h3 className="font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
                 <Shield size={20} className="text-blue-500" /> Medical Overview

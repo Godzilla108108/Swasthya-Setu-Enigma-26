@@ -25,7 +25,7 @@ const SignupPage: React.FC<SignupPageProps> = ({ onSignup, onNavigate }) => {
     setError('');
 
     try {
-      const response = await AuthService.signup(name, email, role);
+      const response = await AuthService.signup(name, email, password, role);
       onSignup(response);
     } catch (err: any) {
       console.error(err);

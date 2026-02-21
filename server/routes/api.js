@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import User from '../models/User.js';
 import Doctor from '../models/Doctor.js';
 import Appointment from '../models/Appointment.js';
+import Report from '../models/Report.js';
 
 const router = express.Router();
 
@@ -10,41 +11,94 @@ const router = express.Router();
 
 // Login Route
 router.post('/auth/login', async (req, res) => {
-    const { phone, role } = req.body;
+    const { email, password, role } = req.body;
     try {
-        let user = await User.findOne({ email: phone, role: role }); // using email field for phone for quick mockup
+        let user = await User.findOne({ email: email, role: role });
 
         if (!user) {
             return res.status(401).json({ message: 'Invalid credentials. User not found.' });
         }
 
+        // Basic password check (assuming plain text for now based on current schema)
+        if (user.password !== password) {
+            return res.status(401).json({ message: 'Invalid credentials. Incorrect password.' });
+        }
+
+        // Output basic payload
+        let payload = {
+            id: user._id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            age: user.age || 0,
+            gender: user.gender || '',
+            medicalHistory: user.medicalHistory || '',
+            allergies: user.allergies || [],
+            emergencyContact: user.emergencyContact || { name: "", phone: "", relation: "" }
+        };
+
+        // If doctor, fetch doctor profile to get doctor-specific fields
+        if (role === 'doctor') {
+            const doctorProfile = await Doctor.findOne({ userId: user._id });
+            if (doctorProfile) {
+                payload = {
+                    ...payload,
+                    id: doctorProfile._id, // Frontend uses doctor._id for distinct appointment booking often
+                    userId: user._id, // But keep reference to user._id
+                    specialty: doctorProfile.specialty,
+                    price: doctorProfile.price,
+                    rating: doctorProfile.rating || 4.5,
+                    experience: doctorProfile.experience || 5,
+                    nextAvailable: doctorProfile.nextAvailable || 'Tomorrow',
+                    isVideoEnabled: doctorProfile.isVideoEnabled !== false,
+                    about: doctorProfile.about || '',
+                    qualifications: doctorProfile.qualifications || [],
+                    verified: doctorProfile.verified !== false,
+                    image: doctorProfile.image || `https://picsum.photos/100/100?random=${Date.now()}`
+                };
+            }
+        }
+
         res.json({
-            user,
+            user: payload,
             role: user.role,
             token: 'dummy-jwt-token-123',
             isNewUser: false
         });
     } catch (error) {
+        console.error("Login Error:", error);
         res.status(500).json({ message: error.message });
     }
 });
 
 // Signup Route
 router.post('/auth/signup', async (req, res) => {
-    const { phone, role, name } = req.body;
+    const { email, password, role, name } = req.body;
     try {
-        let user = await User.findOne({ email: phone, role: role });
+        let user = await User.findOne({ email: email, role: role });
         if (user) {
             return res.status(400).json({ message: 'User already exists. Please login.' });
         }
 
         user = new User({
             name: name || (role === 'doctor' ? 'New Doctor' : 'New Patient'),
-            email: phone, // using email field as unique identifier
-            password: 'password', // dummy password
+            email: email,
+            password: password,
             role: role
         });
         await user.save();
+
+        let payload = {
+            id: user._id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            age: 0,
+            gender: '',
+            medicalHistory: '',
+            allergies: [],
+            emergencyContact: { name: "", phone: "", relation: "" }
+        };
 
         if (role === 'doctor') {
             const doctor = new Doctor({
@@ -54,15 +108,32 @@ router.post('/auth/signup', async (req, res) => {
                 price: '₹500'
             });
             await doctor.save();
+
+            payload = {
+                ...payload,
+                id: doctor._id,
+                userId: user._id,
+                specialty: doctor.specialty,
+                price: doctor.price,
+                rating: 4.5,
+                experience: 0,
+                nextAvailable: 'To be updated',
+                isVideoEnabled: true,
+                about: '',
+                qualifications: [],
+                verified: false,
+                image: `https://picsum.photos/100/100?random=${Date.now()}`
+            };
         }
 
         res.status(201).json({
-            user,
+            user: payload,
             role: user.role,
             token: 'dummy-jwt-token-123',
             isNewUser: true
         });
     } catch (error) {
+        console.error("Signup Error:", error);
         res.status(500).json({ message: error.message });
     }
 });
@@ -120,6 +191,26 @@ router.post('/appointments', async (req, res) => {
     try {
         const newAppointment = new Appointment(req.body);
         const saved = await newAppointment.save();
+        res.status(201).json(saved);
+    } catch (error) {
+        res.status(400).json({ message: error.message });
+    }
+});
+
+// --- Report Routes ---
+router.get('/reports/user/:userId', async (req, res) => {
+    try {
+        const reports = await Report.find({ patientId: req.params.userId }).sort({ createdAt: -1 });
+        res.json(reports);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+router.post('/reports', async (req, res) => {
+    try {
+        const newReport = new Report(req.body);
+        const saved = await newReport.save();
         res.status(201).json(saved);
     } catch (error) {
         res.status(400).json({ message: error.message });

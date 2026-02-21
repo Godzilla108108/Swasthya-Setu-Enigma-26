@@ -24,8 +24,12 @@ import MedicationPanel from './components/MedicationPanel';
 
 import BookingSuccessModal from './components/BookingSuccessModal';
 import AppTour from './components/AppTour';
+import AnimatedStats from './components/AnimatedStats';
+import MedicalReportsModal from './components/MedicalReportsModal';
+import VFamilyModal from './components/VFamilyModal';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
+import GoogleTranslate from './components/GoogleTranslate';
 
 import DoctorsPage from './pages/DoctorsPage';
 import ProfilePage from './pages/ProfilePage';
@@ -36,6 +40,7 @@ import SignupPage from './pages/SignupPage';
 import DoctorDashboard from './pages/DoctorDashboard';
 import DoctorPatientView from './pages/DoctorPatientView';
 import DoctorProfilePage from './pages/DoctorProfilePage';
+import ChatbotPage from './pages/ChatbotPage';
 
 // --- MOCK DATA ---
 const MOCK_REPORTS: MedicalReport[] = [
@@ -140,6 +145,31 @@ function App() {
     localStorage.setItem('swasthya_current_route', currentRoute);
   }, [currentRoute]);
 
+  const loadDoctors = async () => {
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const res = await fetch(`${API_URL}/doctors`);
+      const data = await res.json();
+
+      if (data && data.length > 0) {
+        const processedDoctors = data.map((doc: any, index: number) => ({
+          ...doc,
+          id: doc._id || doc.id,
+          image: doc.image || `https://picsum.photos/100/100?random=${index + 10}`,
+          rating: doc.rating || 4.5,
+          nextAvailable: doc.nextAvailable || 'Tomorrow, 10:00 AM',
+          price: doc.price || '₹500',
+          isVideoEnabled: doc.isVideoEnabled !== undefined ? doc.isVideoEnabled : true,
+          experience: doc.experience || 5,
+          verified: doc.verified !== undefined ? doc.verified : true
+        }));
+        setDoctors(processedDoctors);
+      }
+    } catch (err) {
+      console.error("Failed to fetch doctors:", err);
+    }
+  };
+
   useEffect(() => {
     // Restore session on mount
     const session = AuthService.getSession();
@@ -147,14 +177,7 @@ function App() {
       handleAuthSuccess(session, true);
     }
 
-    fetch('http://localhost:5000/api/doctors')
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.length > 0) {
-          setDoctors(data);
-        }
-      })
-      .catch(err => console.error("Failed to fetch doctors:", err));
+    loadDoctors();
   }, []);
 
   // Overlays State
@@ -171,6 +194,7 @@ function App() {
   const [lastBookedAppointment, setLastBookedAppointment] = useState<Appointment | null>(null);
   const [currentDoctorProfile, setCurrentDoctorProfile] = useState<Doctor>(DEFAULT_DOCTORS[3]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isCaregiverMode, setIsCaregiverMode] = useState(false);
 
   // Sync Dark Mode with DOM
   useEffect(() => {
@@ -183,9 +207,42 @@ function App() {
 
   const handleAuthSuccess = (session: AuthResponse, isRestored: boolean = false) => {
     setIsAuthenticated(true);
-    if (session.role === 'patient') {
-      setUser(session.user as UserProfile);
+
+    // Always refresh doctors list on login just in case new doctors registered
+    loadDoctors();
+
+    if (session.role === 'patient' || session.role === 'relative') {
+      const parsedUser = session.user as UserProfile;
+      setUser(parsedUser);
       setIsDoctorMode(false);
+      setIsCaregiverMode(session.role === 'relative');
+
+      // Async fetch patient DB reports
+      const fetchReports = async () => {
+        try {
+          const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+          const r = await fetch(`${API_URL}/reports/user/${parsedUser.id || 'dummy-patient-id'}`);
+          if (r.ok) {
+            const dbReports = await r.json();
+            setUser(prev => ({
+              ...prev, reports: dbReports.map((d: any) => ({
+                id: d._id || d.id,
+                title: d.title,
+                date: d.date,
+                type: d.type,
+                doctorName: d.doctorName,
+                url: d.url,
+                fileData: d.fileData
+              }))
+            }));
+          }
+        } catch (e) {
+          console.error("Error fetching reports", e);
+        }
+      };
+
+      fetchReports();
+
       if (session.isNewUser) {
         setCurrentRoute(AppRoute.ONBOARDING);
       } else {
@@ -209,13 +266,20 @@ function App() {
     setIsAuthenticated(false);
     setUser(INITIAL_USER);
     setIsDoctorMode(false);
+    setIsCaregiverMode(false);
     setCurrentRoute(AppRoute.LOGIN);
     showToast("Successfully logged out", "info");
   };
 
   const handleBookAppointment = async (doctor: Doctor, date: string, time: string, type: 'video' | 'in-person') => {
+    if (isCaregiverMode) {
+      showToast("Access Denied: Relatives cannot book appointments on behalf of the patient.", "error");
+      return;
+    }
+
     try {
-      const response = await fetch('http://localhost:5000/api/appointments', {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${API_URL}/appointments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -361,13 +425,50 @@ function App() {
   const [activeVideoCall, setActiveVideoCall] = useState<OngoingTreatment | null>(null);
   const [activeChat, setActiveChat] = useState<OngoingTreatment | null>(null);
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
+  const [isReportsModalOpen, setIsReportsModalOpen] = useState(false);
+  const [isVFamilyModalOpen, setIsVFamilyModalOpen] = useState(false);
+
+  const handleAddReport = async (report: MedicalReport) => {
+    let finalId = report.id;
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const res = await fetch(`${API_URL}/reports`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patientId: user.id || 'dummy-patient-id',
+          title: report.title,
+          date: report.date,
+          type: report.type,
+          doctorName: report.doctorName,
+          url: report.url,
+          fileData: (report as any).fileData
+        })
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        finalId = saved._id || saved.id;
+      } else {
+        console.warn("Warning: Failed to save to specific DB. Falling back to local state.");
+      }
+    } catch (err) {
+      console.warn("DB Connection Error (or mock environment without DB):", err);
+    }
+
+    setUser(prev => ({
+      ...prev,
+      reports: [{ ...report, id: finalId }, ...(prev.reports || [])]
+    }));
+    showToast("Report uploaded successfully", "success");
+  };
 
   const renderPage = () => {
     switch (currentRoute) {
       case AppRoute.LOGIN: return <LoginPage onLogin={handleAuthSuccess} onNavigate={setCurrentRoute} />;
       case AppRoute.SIGNUP: return <SignupPage onSignup={handleAuthSuccess} onNavigate={setCurrentRoute} />;
       case AppRoute.ONBOARDING: return <OnboardingPage initialName={user.name} initialEmail={user.email} onComplete={handleOnboardingComplete} />;
-      case AppRoute.HOME: return <HomePage user={user} appointments={appointments} onNavigate={setCurrentRoute} onRateDoctor={handleRateAppointment} onStartVideoCall={setActiveVideoCall} onStartChat={setActiveChat} />;
+      case AppRoute.HOME: return <HomePage user={user} appointments={appointments} onNavigate={setCurrentRoute} onRateDoctor={handleRateAppointment} onStartVideoCall={setActiveVideoCall} onStartChat={setActiveChat} onOpenReports={() => setIsReportsModalOpen(true)} onOpenVFamily={() => setIsVFamilyModalOpen(true)} />;
+      case AppRoute.CHATBOT: return <ChatbotPage user={user} />;
       case AppRoute.DOCTORS: return <DoctorsPage doctors={doctors} filterSpecialty={null} onBook={handleBookAppointment} />;
       case AppRoute.PROFILE: return <ProfilePage user={user} onUpdate={handleUpdateProfile} onLogout={handleLogout} />;
       case AppRoute.DOCTOR_HOME: return <DoctorDashboard appointments={appointments} onSelectPatient={handleDoctorSelectPatient} onAccept={handleAcceptAppointment} onDecline={handleDeclineAppointment} />;
@@ -375,7 +476,7 @@ function App() {
         const apt = appointments.find(a => a.id === selectedPatientId) || null;
         return <DoctorPatientView user={isDoctorMode ? MOCK_PATIENT_DATA : user} appointment={apt} onBack={() => setCurrentRoute(AppRoute.DOCTOR_HOME)} onComplete={handleConsultationComplete} />;
       case AppRoute.DOCTOR_PROFILE: return <DoctorProfilePage doctor={currentDoctorProfile} onUpdate={handleUpdateDoctor} onLogout={handleLogout} />;
-      default: return <HomePage user={user} appointments={appointments} onNavigate={setCurrentRoute} onRateDoctor={handleRateAppointment} onStartVideoCall={setActiveVideoCall} onStartChat={setActiveChat} />;
+      default: return <HomePage user={user} appointments={appointments} onNavigate={setCurrentRoute} onRateDoctor={handleRateAppointment} onStartVideoCall={setActiveVideoCall} onStartChat={setActiveChat} onOpenReports={() => setIsReportsModalOpen(true)} onOpenVFamily={() => setIsVFamilyModalOpen(true)} />;
     }
   };
 
@@ -424,8 +525,25 @@ function App() {
           )}
 
           <main className="flex-1 overflow-y-auto scrollbar-hide relative animate-page-enter" key={currentRoute}>
-            <div className="h-full w-full mx-auto max-w-7xl">
-              {renderPage()}
+            <div className="h-full w-full mx-auto max-w-7xl flex flex-col min-h-full">
+              {/* Caregiver Mode Banner */}
+              {isCaregiverMode && (
+                <div className="bg-amber-500 text-white text-xs font-bold py-1.5 px-4 text-center sticky top-0 z-[100] shadow-md flex items-center justify-center gap-2 rounded-b-xl max-w-2xl mx-auto mb-4">
+                  <ShieldAlert size={14} /> Caregiver Mode: Viewing {user.name}'s profile. Access to edit sensitive details is restricted.
+                </div>
+              )}
+              <div className="flex-1">
+                {renderPage()}
+              </div>
+
+              {/* Home Page Footer Stats */}
+              {isAuthenticated && currentRoute === AppRoute.HOME && (
+                <div className="mt-8 mb-24 md:mb-8 px-6 md:px-8 w-full mx-auto max-w-7xl">
+                  <div className="pt-8 border-t border-slate-200 dark:border-slate-800">
+                    <AnimatedStats />
+                  </div>
+                </div>
+              )}
             </div>
           </main>
 
@@ -492,12 +610,34 @@ function App() {
           <MedicationPanel isOpen={isMedicationPanelOpen} onClose={() => setIsMedicationPanelOpen(false)} user={user} onMarkTaken={handleMarkMedicationTaken} onNavigateProfile={() => { setIsMedicationPanelOpen(false); setCurrentRoute(AppRoute.PROFILE); }} />
           {activeVideoCall && <VideoCallModal treatment={activeVideoCall} onClose={() => setActiveVideoCall(null)} />}
           {activeChat && (
-            <div className="absolute inset-0 z-[60] glass animate-in slide-in-from-right-10 duration-500">
+            <div className="absolute inset-0 z-[110] glass animate-in slide-in-from-right-10 duration-500">
               <DoctorChatView treatment={activeChat} onBack={() => setActiveChat(null)} />
             </div>
           )}
+          <MedicalReportsModal
+            isOpen={isReportsModalOpen}
+            onClose={() => setIsReportsModalOpen(false)}
+            user={user}
+            onAddReport={handleAddReport}
+            isCaregiverMode={isCaregiverMode}
+          />
+          <VFamilyModal
+            isOpen={isVFamilyModalOpen}
+            onClose={() => setIsVFamilyModalOpen(false)}
+            user={user}
+            isCaregiverMode={isCaregiverMode}
+            onNavigate={(route) => {
+              setIsVFamilyModalOpen(false);
+              setCurrentRoute(route);
+            }}
+          />
           <BookingSuccessModal appointment={lastBookedAppointment} onClose={handleBookingConfirmationClose} />
           <AppTour isOpen={showTour} onComplete={() => setShowTour(false)} />
+
+          {/* Global Floating Translation Widget */}
+          <div className="fixed bottom-4 right-4 z-[200] md:bottom-6 md:right-6">
+            <GoogleTranslate />
+          </div>
         </div>
       </div>
     </div>

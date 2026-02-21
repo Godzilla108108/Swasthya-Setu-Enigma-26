@@ -54,6 +54,10 @@ export interface UserProfile {
     phone: string;
     relation: string;
   };
+  caregiver?: {
+    name: string;
+    email: string;
+  };
 }
 
 export interface Message {
@@ -121,7 +125,7 @@ export interface PrescriptionData {
 
 export interface AuthResponse {
   user: UserProfile | Doctor;
-  role: 'patient' | 'doctor';
+  role: 'patient' | 'doctor' | 'relative';
   token: string;
   isNewUser?: boolean;
 }
@@ -135,6 +139,7 @@ export enum AppRoute {
   DOCTORS = 'doctors',
   PROFILE = 'profile',
   SOS = 'sos',
+  CHATBOT = 'chatbot',
   DOCTOR_HOME = 'doctor_home',
   DOCTOR_CONSULT = 'doctor_consult',
   DOCTOR_PROFILE = 'doctor_profile'
